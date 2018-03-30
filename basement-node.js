@@ -5,7 +5,7 @@
 const Flow = require('flow-code-description');
 const {LOG, ERR, TIME} = (require('./src/utils/node-console'))({log: true, errors: true});
 const Load = require('./src/utils/node-loader');
-const STORAGE = Load({ homedir: 'knowkeep' });
+const STORAGE = Load();
 const CORE = require('./src/knowkeep');
 // const UTIL = require('./utils/helpers');
 
@@ -13,20 +13,27 @@ const CORE = require('./src/knowkeep');
 const BASEMENT = new Flow({
   steps: {
     'start': bootstrap,
-    'config is OK': finish,
+    'config is loaded': finish,
+    'app is bootstrapped': finish,
   },
-  settings: {},
+  settings: { isLogging: true, logMsg: 'basement:' },
 });
-BASEMENT.done('start');
+BASEMENT.start();
 
 
 function bootstrap() {
-
-  STORAGE.getConfig(
-    config => BASEMENT.done('config is OK', config)
+  STORAGE.bootstrap(
+    config => BASEMENT.done('app is bootstrapped', config)
   );
 }
-function finish() {
-  ERR('loaded!');
+function getInterface() {
+  STORAGE.getInterface(
+    content => BASEMENT.done('interface is loaded', content)
+  );
+}
+
+
+function finish(arg) {
+  ERR('loaded!', arg);
   process.exit(1);
 }
