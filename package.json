@@ -1,0 +1,33 @@
+{
+  "name": "knowkeep",
+  "version": "0.1.0",
+  "description": "A cross-platform utility for keeping knowledges",
+  "main": "knowkeep.js",
+  "bin": {
+    "knowkeep": "knowkeep.js"
+  },
+  "preferGlobal": true,
+  "dependencies": {
+    "flow-code-description": "2.0.0",
+    "fs-handy-wraps": "1.2.0",
+    "parser-template": "1.5.2"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/klimcode/knowkeep.git"
+  },
+  "keywords": [
+    "database",
+    "utility"
+  ],
+  "author": "John Klimov",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/klimcode/knowkeep/issues"
+  },
+  "homepage": "https://github.com/klimcode/knowkeep#readme"
+}
