@@ -2,13 +2,13 @@
   "name": "knowkeep",
   "version": "0.1.0",
   "description": "A cross-platform utility for keeping knowledges",
-  "main": "knowkeep.js",
+  "main": "basement-node.js",
   "bin": {
-    "knowkeep": "knowkeep.js"
+    "knowkeep": "basement-node.js"
   },
   "preferGlobal": true,
   "dependencies": {
-    "flow-code-description": "2.0.0",
+    "flow-code-description": "3.0.0",
     "fs-handy-wraps": "1.2.0",
     "parser-template": "1.5.2"
   },

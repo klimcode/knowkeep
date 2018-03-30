@@ -1,3 +1,5 @@
+// This module can be used in Node.js and a browser.
+// No host-specified Objects must be used here.
 module.exports = {
     removeDuplicates (arr) {
         return arr.filter ((el, pos, a) => (a.indexOf(el) == pos) && el );
@@ -12,11 +14,6 @@ module.exports = {
     },
     isEqual (str1, str2) {
         return str1.toLowerCase().trim() === str2.toLowerCase().trim();
-    },
-    clock (start) {
-        if ( !start ) return process.hrtime();
-        var end = process.hrtime(start);
-        return Math.round((end[0]*1000) + (end[1]/1000000));
     },
     swap (arr, a, b) {
         let temp = arr[a];
