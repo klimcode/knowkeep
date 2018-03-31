@@ -3,7 +3,7 @@ module.exports = function (settings) {
     return {
         LOG (msg, arg) {
             if (settings.log) {
-                console.log ('\x1b[2m%s\x1b[0m', msg);
+                console.log ('\x1b[1m%s\x1b[0m', msg);
                 arg && console.log (...[...arguments].slice(1));
             } 
         },

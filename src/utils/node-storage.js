@@ -11,22 +11,26 @@ const LOADER = new Flow({
     'database is OK': parseBase,
     'template for database is OK': parseBase,
     'base is parsed': checkLoadingFinish,
-    'data for view is prepared': checkLoadingFinish,
+    'user interface is prepared': checkLoadingFinish,
 
-    'bootstrap is finished': answer,
+    'loading is finished': sendResult,
+    'loading is failed': sendResult,
   },
-  settings: { isLogging: true, logName: 'node-loader: ' },
+  settings: { isLogging: true, logName: 'loader: ', logStyle: '\x1b[2m%s\x1b[0m' },
+});
+
+const MODEL = new Flow({
+  steps: {
+    'record is requested': getRecord,
+  },
+  settings: { isLogging: true, logName: 'storage: ', logStyle: '\x1b[2m%s\x1b[0m' },
 });
 
 
-const loaderDefSettings = {
-  folderName: 'knowkeep',
-  configFileName: 'config.json',
-};
 let SETTINGS = {};
 let STORAGE = {
   statusDir: false,
-  configContent: null,
+  config: {},
   base: {},
   view: {},
 };
@@ -45,7 +49,7 @@ function readConfigFile() {
     pathToBase:             PATH.join( dir, 'base.note' ),
     pathToBaseTemplate:     PATH.join( dir, 'template_base.txt' ),
     pathToInterface:        PATH.join( dir, 'new.note' ),
-    pathToInterfaceTemplate: PATH.join( dir, 'template_interface.txt' ),
+    pathToInterfaceTemplate:PATH.join( dir, 'template_interface.txt' ),
     pathToTreeTemplate:     PATH.join( dir, 'template_tree.txt' ),
     editor: 'subl',
     bases: [{ alias: "first", path: "base.txt" }],
@@ -69,19 +73,19 @@ function readConfigFile() {
   }
 }
 function getBase() {
-  LOG (`trying to read Database: ${STORAGE.config.pathToBase}`);
+  LOG (`Database file: ${STORAGE.config.pathToBase}`);
   FILE.readOrMake(
     STORAGE.config.pathToBase,
-    storeBaseContent,
-    newBaseCreated
+    readBase,
+    processNewBase
   );
 
 
-  function newBaseCreated (path, content) {
+  function processNewBase (path, content) {
     LOG (`created database file: ${path}`);
-    storeBaseContent (content);
+    readBase (content);
   }
-  function storeBaseContent (content) {
+  function readBase (content) {
     STORAGE.base.raw = content;
     LOADER.done ('database is OK', content);
   }
@@ -94,10 +98,10 @@ function getBaseTemplate() {
   '==============================================================================\n';
 
 
-  LOG (`trying to read Template for Database: ${STORAGE.config.pathToBaseTemplate}`);
+  LOG (`Database template: ${STORAGE.config.pathToBaseTemplate}`);
   FILE.readOrMake (
     STORAGE.config.pathToBaseTemplate,
-    processTemplate,
+    readTemplate,
     processDefTemplate,
     defTemplateText,
   );
@@ -105,86 +109,98 @@ function getBaseTemplate() {
 
   function processDefTemplate (path, content) {
     LOG (`created file for Base Template: ${path}. You may edit it manually.`);
-    processTemplate (content);
+    readTemplate (content);
   }
-  function processTemplate (template) {
+  function readTemplate (template) {
     STORAGE.base.parser = new PARSER (template);
     LOADER.done('template for database is OK');
   }
 }
 function parseBase() {
-    const baseBarser = STORAGE.base.parser;
-    let data;
-    if (STORAGE.base.raw === undefined || !baseBarser) return;   // async race
+  const baseBarser = STORAGE.base.parser;
+  if (STORAGE.base.raw === undefined || !baseBarser) return;   // async race
 
 
-    if (STORAGE.base.raw === '') {
-        data = baseBarser.parse (baseBarser.template)  // New empty base
-        STORAGE.emptyBase = true;
-    }
-    else data = baseBarser.parse (STORAGE.base.raw);
-    delete STORAGE.base.raw;
+  let data;
+  if (STORAGE.base.raw === '') {
+    data = baseBarser.parse (baseBarser.template)  // New empty base
+    STORAGE.emptyBase = true;
+  }
+  else data = baseBarser.parse (STORAGE.base.raw);
+  delete STORAGE.base.raw;
 
 
-    data = data instanceof Array ? data : [data]; // if Parser returned only one Record object -> enforce it to be an array.
-    data.forEach (record => record.tags = record.tags.trim().split (', ')); // convert tags to Array
-    data = data.filter (record => record.text.trim()); // remove empty records
+  data = data instanceof Array ? data : [data]; // if Parser returned only one Record object -> enforce it to be an array.
+  data = data.filter (record => record.text.trim()); // remove empty records
+  data.forEach (record => record.tags = record.tags.trim().split (', ')); // convert tags to Array
 
-    STORAGE.base.data = data;
-    
-    LOADER.done ('base is parsed');
+  STORAGE.base.data = data;
+  
+  LOADER.done ('base is parsed');
 }
 function getInterfaceTemplate() {
-    let defTemplateText =
-    '<m><text>' +
-    '\n================================== name ======================================\n' +
-    '<><name>' +
-    '\n================================== tags ======================================\n' +
-    '<><tags>' +
-    '\n================================ commands ====================================\n' +
-    '<m>add<command>' +
-    '\n========================== tags used previously ==============================\n' +
-    '<>any tag<tags_used>\n';
+  let defTemplateText =
+  '<m><text>' +
+  '\n================================== name ======================================\n' +
+  '<><name>' +
+  '\n================================== tags ======================================\n' +
+  '<><tags>' +
+  '\n================================ commands ====================================\n' +
+  '<m>add<command>' +
+  '\n========================== tags used previously ==============================\n' +
+  '<>any tag<tags_used>\n';
 
 
-    LOG (`trying to read Template for Interface: ${STORAGE.config.pathToInterfaceTemplate}`);
-    FILE.readOrMake (
-        STORAGE.config.pathToInterfaceTemplate,
-        processTemplate,
-        processDefTemplate,
-        defTemplateText
-    );
+  LOG(`Interface template: ${STORAGE.config.pathToInterfaceTemplate}`);
+  FILE.readOrMake(
+    STORAGE.config.pathToInterfaceTemplate,
+    readTemplate,
+    processDefTemplate,
+    defTemplateText
+  );
 
 
-    function processDefTemplate (path, content) {
+  function processDefTemplate (path, content) {
+    LOG(`created file for Interface Template: ${path}. You may edit it manually.`);
+    readTemplate(content);
+  }
+  function readTemplate(template) {
+    let viewParser = new PARSER(template);
+    STORAGE.view.parser = viewParser;
+    STORAGE.view.data = viewParser.parse(template)[0];
+    STORAGE.view.defData = STORAGE.view.data;
 
-        LOG (`created file for Interface Template: ${path}. You may edit it manually.`);
-        processTemplate (content);
-    }
-    function processTemplate (template) {
-        let interfaceParser = new PARSER (template);
-        STORAGE.view.parser = interfaceParser;
-        STORAGE.view.data = interfaceParser.parse (template)[0];
-        STORAGE.view.defData = STORAGE.view.data;
-
-        LOADER.done('data for view is prepared');
-    }
+    LOADER.done('user interface is prepared');
+  }
 }
 function checkLoadingFinish() {
   const base = STORAGE.base.data;
   const interface = STORAGE.view.data;
   if (!base || !interface) return;   // async race
 
-  LOADER.done('bootstrap is finished', true)
+  LOADER.done('loading is finished')
 }
-function answer(result) {
 
+
+
+function getRecord(result) {
+
+  STORAGE.cb(result);
+}
+
+
+function sendResult(result) {
   STORAGE.cb(result);
 }
 
 
 
 module.exports = function(customSettings) {
+  const loaderDefSettings = {
+    folderName: 'knowkeep',
+    configFileName: 'config.json',
+  };
+
   SETTINGS = Object.assign(loaderDefSettings, customSettings);
   SETTINGS.dir = PATH.join(require('os').homedir(), SETTINGS.folderName);
   SETTINGS.pathToConfig = PATH.join(SETTINGS.dir, SETTINGS.configFileName);
@@ -195,8 +211,14 @@ module.exports = function(customSettings) {
       STORAGE.cb = exitCallback;
       checkDir('loading is started');
     },
-    getData(cb) {
-      cb({});
+    getConfig() {
+      return STORAGE.config;
+    },
+    parseView(string) {
+      return STORAGE.view.parser.parse(string)[0];
+    },
+    getView(content) {
+      return STORAGE.view.parser.stringify(content ? content : STORAGE.view.data);
     },
   }
 }
