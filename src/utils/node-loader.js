@@ -6,16 +6,16 @@ const {LOG, ERR, TIME} = (require('./node-console'))({log: true, errors: true});
 
 const LOADER = new Flow({
   steps: {
-    'start': readConfigFile,
+    'loading is started': readConfigFile,
     'config is OK': [ getBase, getBaseTemplate, getInterfaceTemplate ],
     'database is OK': parseBase,
     'template for database is OK': parseBase,
-    'base is parsed': reportToMainApp,
-    'data for view is prepared': reportToMainApp,
+    'base is parsed': checkLoadingFinish,
+    'data for view is prepared': checkLoadingFinish,
 
-    'bootstrap is finished': reportToMainApp,
+    'bootstrap is finished': answer,
   },
-  settings: { isLogging: true, logMsg: 'loader:' },
+  settings: { isLogging: true, logName: 'node-loader: ' },
 });
 
 
@@ -170,8 +170,16 @@ function getInterfaceTemplate() {
         LOADER.done('data for view is prepared');
     }
 }
-function reportToMainApp() {
-  STORAGE.cb(STORAGE);
+function checkLoadingFinish() {
+  const base = STORAGE.base.data;
+  const interface = STORAGE.view.data;
+  if (!base || !interface) return;   // async race
+
+  LOADER.done('bootstrap is finished', true)
+}
+function answer(result) {
+
+  STORAGE.cb(result);
 }
 
 
@@ -185,7 +193,7 @@ module.exports = function(customSettings) {
   return {
     bootstrap(exitCallback) {
       STORAGE.cb = exitCallback;
-      checkDir('start');
+      checkDir('loading is started');
     },
     getData(cb) {
       cb({});

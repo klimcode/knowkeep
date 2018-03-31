@@ -16,9 +16,9 @@ const BASEMENT = new Flow({
     'config is loaded': finish,
     'app is bootstrapped': finish,
   },
-  settings: { isLogging: true, logMsg: 'basement:' },
+  settings: { isLogging: true },
 });
-BASEMENT.start();
+BASEMENT.start('app is started');
 
 
 function bootstrap() {
