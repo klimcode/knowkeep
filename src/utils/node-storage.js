@@ -214,11 +214,16 @@ module.exports = function(customSettings) {
     getConfig() {
       return STORAGE.config;
     },
-    parseView(string) {
-      return STORAGE.view.parser.parse(string)[0];
+    validate(string) {
+      const result = STORAGE.view.parser.parse(string)[0];
+      return {
+        result,
+        ok: result ? true : false,
+        error: '',
+      }
     },
-    getView(content) {
-      return STORAGE.view.parser.stringify(content ? content : STORAGE.view.data);
+    getView(data) {
+      return STORAGE.view.parser.stringify(data ? data : STORAGE.view.data);
     },
   }
 }

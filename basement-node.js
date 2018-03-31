@@ -15,10 +15,13 @@ const BASEMENT = new Flow({
     'storage is ready': renderView,
     'interface file is ready': [openTextEditor, initController],
     
-    'user entered something': closeApp,
+    'user entered something': validateInput,
+    'user input is valid': closeApp,
+
+    'interface is broken': showErrorMessage,
+    'interface is restored by force': renderView,
 
     'storage crushed during bootstrapping': crashApp,
-    'interface is broken': closeApp,
     'end': closeApp,
   },
   settings: { isLogging: true },
@@ -30,6 +33,7 @@ let STATE = {
 };
 
 
+// MODEL (STORAGE + CORE)
 function initModel() {
   STORAGE.bootstrap(processResults);
 
@@ -41,6 +45,9 @@ function initModel() {
     }
   }
 }
+
+
+// VIEW (USER INTERFACE)
 function renderView() {
   const pathToInterface = STORAGE.getConfig().pathToInterface;
   const view = STORAGE.getView();
@@ -51,35 +58,29 @@ function renderView() {
     () => STATE.isStartup && BASEMENT.done ('interface file is ready') // this is performed only once
   );
 }
-function initController() {
+function showErrorMessage(message) {
   const pathToInterface = STORAGE.getConfig().pathToInterface;
-  LOG ('detecting changes of Interface File...');
-
-
-  FILE.watch (pathToInterface, readInterfaceFile);
-
-
-  function readInterfaceFile() { 
-    // called every time interfaceFile is saved
-    // interface must be read only after external changes made by User
-    // internal changes affect on a "skipViewEvent" Flag only
-    if (STATE.skipViewEvent) return STATE.skipViewEvent = false;
-
-    FILE.read (
-      pathToInterface,
-      parseInterface
-    );
-
-    function parseInterface (content) {
-      let data = STORAGE.parseView (content);
-
-      if (!data) return BASEMENT.done ('interface is broken');
-
-      // data.tags = UTIL.prettifyList (data.tags);
-
-      BASEMENT.done('user entered something', data);
-    }
+  const forcedRestoration = STATE.needsRestoration; // it's false on the first appear
+  let mesBroken = 
+    '\n\n                        INTERFACE IS BROKEN \n'+
+    'PLEASE, FIX IT MANUALLY OR IT WILL BE RESTORED WITH POSSIBLE DATA LOSS';
+  let msg = message || mesBroken;
+  
+  
+  if (forcedRestoration) {
+    message = '';
+    STATE.needsRestoration = false;
+  } else {
+    ERR (msg);
+    STATE.needsRestoration = true;
   }
+  
+  STATE.skipViewEvent = true;
+  FILE.append (
+    pathToInterface,
+    msg,
+    () => forcedRestoration && BASEMENT.done ('interface is restored by force') // rendering of restored interface
+  );
 }
 function openTextEditor() {
   STATE.isStartup = false;
@@ -100,12 +101,42 @@ function openTextEditor() {
 }
 
 
+// CONTROLLER (USER INPUT)
+function initController() {
+  const pathToInterface = STORAGE.getConfig().pathToInterface;
+  LOG ('detecting changes of Interface File...');
 
-function closeApp(arg) {
-  LOG('Tot ziens!', arg);
-  process.exit(1);
+
+  FILE.watch (pathToInterface, readInterfaceFile);
+
+
+  function readInterfaceFile() { 
+    // called every time interfaceFile is saved
+    // interface must be read only after external changes made by User
+    // internal changes affect on a "skipViewEvent" Flag only
+    if (STATE.skipViewEvent) return STATE.skipViewEvent = false;
+
+    FILE.read (
+      pathToInterface,
+      (fileContent) => BASEMENT.done('user entered something', fileContent)
+    );
+  }
 }
+function validateInput(data) {
+  const diagnosis = STORAGE.validate(data);
+  if (diagnosis.ok) {
+    BASEMENT.done('user input is valid', diagnosis.result);
+  } else {
+    BASEMENT.done('interface is broken', diagnosis.error);
+  }
+}
+
+
 function crashApp(arg) {
   ERR('details:', arg);
+  process.exit(1);
+}
+function closeApp() {
+  LOG('Tot ziens!');
   process.exit(1);
 }
