@@ -1,12 +1,10 @@
 #!/usr/bin/env node
 'use strict'
-
 // IMPORTS
-const Flow = require('flow-code-description');
-const {LOG, ERR, TIME} = (require('./src/utils/node-console'))({log: true, errors: true});
-const STORAGE = (require('./src/utils/node-storage'))();
-const CORE = require('./src/knowkeep');
-const FILE = require('fs-handy-wraps');
+  const Flow = require('flow-code-description');
+  const {LOG, ERR, TIME} = (require('./src/utils/node-console'))({log: true, errors: true});
+  const STORAGE = (require('./src/node-storage'))();
+  const FILE = require('fs-handy-wraps');
 
 
 const BASEMENT = new Flow({
@@ -16,7 +14,8 @@ const BASEMENT = new Flow({
     'interface file is ready': [openTextEditor, initController],
     
     'user entered something': validateInput,
-    'user input is valid': closeApp,
+    'user input is valid': processInput,
+    'user input is processed': renderView,
 
     'interface is broken': showErrorMessage,
     'interface is restored by force': renderView,
@@ -30,37 +29,40 @@ BASEMENT.start('app is started');
 
 let STATE = {
   isStartup: true,
+  skipViewEvent: false,
+  needRestoration: false,
 };
 
 
 // MODEL (STORAGE + CORE)
-function initModel() {
+function initModel(done) {
   STORAGE.bootstrap(processResults);
 
   function processResults(res) {
     if (res && res.error) {
-      BASEMENT.done('storage crushed during bootstrapping', res.error);
+      done('storage crushed during bootstrapping', res.error);
     } else {
-      BASEMENT.done('storage is ready', res)
+      done('storage is ready', res)
     }
   }
 }
 
-
 // VIEW (USER INTERFACE)
-function renderView() {
+function renderView(done, viewString) {
   const pathToInterface = STORAGE.getConfig().pathToInterface;
-  const view = STORAGE.getView();
+  const view = viewString || STORAGE.getView();
+
+  if (!STATE.isStartup) STATE.skipViewEvent = true;
 
   FILE.write(
     pathToInterface,
     view,
-    () => STATE.isStartup && BASEMENT.done ('interface file is ready') // this is performed only once
+    () => STATE.isStartup && done('interface file is ready') // this is performed only once
   );
 }
-function showErrorMessage(message) {
+function showErrorMessage(done, message) {
   const pathToInterface = STORAGE.getConfig().pathToInterface;
-  const forcedRestoration = STATE.needsRestoration; // it's false on the first appear
+  const forcedRestoration = STATE.needRestoration; // it's false on the first appear
   let mesBroken = 
     '\n\n                        INTERFACE IS BROKEN \n'+
     'PLEASE, FIX IT MANUALLY OR IT WILL BE RESTORED WITH POSSIBLE DATA LOSS';
@@ -69,17 +71,17 @@ function showErrorMessage(message) {
   
   if (forcedRestoration) {
     message = '';
-    STATE.needsRestoration = false;
+    STATE.needRestoration = false;
   } else {
     ERR (msg);
-    STATE.needsRestoration = true;
+    STATE.needRestoration = true;
   }
   
   STATE.skipViewEvent = true;
   FILE.append (
     pathToInterface,
     msg,
-    () => forcedRestoration && BASEMENT.done ('interface is restored by force') // rendering of restored interface
+    () => forcedRestoration && done ('interface is restored by force') // rendering of restored interface
   );
 }
 function openTextEditor() {
@@ -100,9 +102,8 @@ function openTextEditor() {
   }
 }
 
-
 // CONTROLLER (USER INPUT)
-function initController() {
+function initController(done) {
   const pathToInterface = STORAGE.getConfig().pathToInterface;
   LOG ('detecting changes of Interface File...');
 
@@ -118,18 +119,24 @@ function initController() {
 
     FILE.read (
       pathToInterface,
-      (fileContent) => BASEMENT.done('user entered something', fileContent)
+      (fileContent) => done('user entered something', fileContent)
     );
   }
 }
-function validateInput(data) {
+function validateInput(done, data) {
   const diagnosis = STORAGE.validate(data);
   if (diagnosis.ok) {
-    BASEMENT.done('user input is valid', diagnosis.result);
+    done('user input is valid', diagnosis.result);
   } else {
-    BASEMENT.done('interface is broken', diagnosis.error);
+    done('interface is broken', diagnosis.error);
   }
 }
+function processInput(done, input) {
+  let result = STORAGE.think (input);
+
+  done ('user input is processed', result)
+}
+
 
 
 function crashApp(arg) {

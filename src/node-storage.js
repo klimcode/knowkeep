@@ -1,12 +1,14 @@
 const Flow = require('flow-code-description');
 const FILE = require('fs-handy-wraps');
 const PATH = require('path');
+const BRAIN = require('./knowkeep');
 const PARSER = require('parser-template');
-const {LOG, ERR, TIME} = (require('./node-console'))({log: true, errors: true});
+const {LOG, ERR, TIME, MEM} = (require('./utils/node-console'))({log: true, errors: true});
 
 const LOADER = new Flow({
   steps: {
-    'loading is started': readConfigFile,
+    'loading is started': checkDir,
+    'directory is OK': readConfigFile,
     'config is OK': [ getBase, getBaseTemplate, getInterfaceTemplate ],
     'database is OK': parseBase,
     'template for database is OK': parseBase,
@@ -19,12 +21,12 @@ const LOADER = new Flow({
   settings: { isLogging: true, logName: 'loader: ', logStyle: '\x1b[2m%s\x1b[0m' },
 });
 
-const MODEL = new Flow({
-  steps: {
-    'record is requested': getRecord,
-  },
-  settings: { isLogging: true, logName: 'storage: ', logStyle: '\x1b[2m%s\x1b[0m' },
-});
+// const MODEL = new Flow({
+//   steps: {
+//     'record is requested': getRecord,
+//   },
+//   settings: { isLogging: true, logName: 'storage: ', logStyle: '\x1b[2m%s\x1b[0m' },
+// });
 
 
 let SETTINGS = {};
@@ -37,13 +39,13 @@ let STORAGE = {
 
   
 // INTERNAL FUNCTIONS
-function checkDir(nextStep) {
+function checkDir(done) {
   FILE.makeDir (
     SETTINGS.dir,
-    () => LOADER.done (nextStep)
+    () => done ('directory is OK')
   );
 }
-function readConfigFile() {
+function readConfigFile(done) {
   const dir = SETTINGS.dir;
   const configDefaults = {
     pathToBase:             PATH.join( dir, 'base.note' ),
@@ -69,10 +71,10 @@ function readConfigFile() {
 
   function storeConfigData (config) {
     STORAGE.config = config;
-    LOADER.done('config is OK');
+    done('config is OK');
   }
 }
-function getBase() {
+function getBase(done) {
   LOG (`Database file: ${STORAGE.config.pathToBase}`);
   FILE.readOrMake(
     STORAGE.config.pathToBase,
@@ -87,10 +89,10 @@ function getBase() {
   }
   function readBase (content) {
     STORAGE.base.raw = content;
-    LOADER.done ('database is OK', content);
+    done ('database is OK', content);
   }
 }
-function getBaseTemplate() {
+function getBaseTemplate(done) {
   let defTemplateText =
   '<><name>\n' +
   '<><tags>\n' +
@@ -113,10 +115,10 @@ function getBaseTemplate() {
   }
   function readTemplate (template) {
     STORAGE.base.parser = new PARSER (template);
-    LOADER.done('template for database is OK');
+    done('template for database is OK');
   }
 }
-function parseBase() {
+function parseBase(done) {
   const baseBarser = STORAGE.base.parser;
   if (STORAGE.base.raw === undefined || !baseBarser) return;   // async race
 
@@ -126,7 +128,9 @@ function parseBase() {
     data = baseBarser.parse (baseBarser.template)  // New empty base
     STORAGE.emptyBase = true;
   }
-  else data = baseBarser.parse (STORAGE.base.raw);
+  else {
+    data = baseBarser.parse (STORAGE.base.raw);
+  }
   delete STORAGE.base.raw;
 
 
@@ -136,9 +140,9 @@ function parseBase() {
 
   STORAGE.base.data = data;
   
-  LOADER.done ('base is parsed');
+  done ('base is parsed');
 }
-function getInterfaceTemplate() {
+function getInterfaceTemplate(done) {
   let defTemplateText =
   '<m><text>' +
   '\n================================== name ======================================\n' +
@@ -170,26 +174,18 @@ function getInterfaceTemplate() {
     STORAGE.view.data = viewParser.parse(template)[0];
     STORAGE.view.defData = STORAGE.view.data;
 
-    LOADER.done('user interface is prepared');
+    done('user interface is prepared');
   }
 }
-function checkLoadingFinish() {
+function checkLoadingFinish(done) {
   const base = STORAGE.base.data;
   const interface = STORAGE.view.data;
   if (!base || !interface) return;   // async race
 
-  LOADER.done('loading is finished')
+  done('loading is finished')
 }
 
-
-
-function getRecord(result) {
-
-  STORAGE.cb(result);
-}
-
-
-function sendResult(result) {
+function sendResult(done, result) {
   STORAGE.cb(result);
 }
 
@@ -209,7 +205,7 @@ module.exports = function(customSettings) {
   return {
     bootstrap(exitCallback) {
       STORAGE.cb = exitCallback;
-      checkDir('loading is started');
+      LOADER.done('loading is started');
     },
     getConfig() {
       return STORAGE.config;
@@ -225,5 +221,19 @@ module.exports = function(customSettings) {
     getView(data) {
       return STORAGE.view.parser.stringify(data ? data : STORAGE.view.data);
     },
+    think(input) {
+      const base = STORAGE.base.data;
+      const viewParser = STORAGE.view.parser;
+      // const result = BRAIN.think(base, input);
+      const result = {base, input};
+      result.input.name = result.input.text; 
+
+      STORAGE.base.data = result.base;
+      STORAGE.view.data = result.input;
+
+
+      return viewParser.stringify(result.input);
+      // return JSON.stringify(base);
+    }
   }
 }

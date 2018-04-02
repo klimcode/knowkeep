@@ -16,8 +16,12 @@ module.exports = function (settings) {
         TIME (start) {
             if (!start) return process.hrtime();
 
-            var end = process.hrtime(start);
-            return Math.round((end[0]*1000) + (end[1]/1000000));
+            const end = process.hrtime(start);
+            const diff = end[0]*1000000 + end[1]/1000;
+            return Math.round(diff)/1000;
         },
+        MEM () {
+            return process.memoryUsage().rss/1000000; // Megabytes
+        }
     }
 }
