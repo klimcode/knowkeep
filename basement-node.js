@@ -1,93 +1,129 @@
 #!/usr/bin/env node
 'use strict'
 // IMPORTS
-  const Flow = require('flow-code-description');
-  const {LOG, ERR, TIME} = (require('./src/utils/node-console'))({log: true, errors: true});
-  const STORAGE = (require('./src/node-storage'))();
+  const PATH = require('path');
+  const BRIEF = require('./src/brief');
+  const {LOG, ERR, TIME} = (require('./src/node/console'))({log: true, errors: true});
+  const MODEL = (require('./src/node/model'))();
+  const VIEW = require('./src/node/view');
   const FILE = require('fs-handy-wraps');
 
 
-const BASEMENT = new Flow({
-  steps: {
-    'start': initModel,
-    'storage is ready': renderView,
-    'interface file is ready': [openTextEditor, initController],
-    
-    'user entered something': validateInput,
-    'user input is valid': processInput,
-    'user input is processed': renderView,
+const BASEMENT = {
+  homedir: PATH.join (require('os').homedir(), 'knowkeep'),
+  // steps: {
+  //   'start': [initModel, initView],
+  //   'view is ready': renderView,
+  //   'model is ready': renderView,
+  //   'user interface is ready': [openTextEditor, initController],
 
-    'interface is broken': showErrorMessage,
-    'interface is restored by force': renderView,
+  //   'user entered something': validateInput,
+  //   'user input is valid': processInput,
+  //   'user input is processed': renderView,
 
-    'storage crushed during bootstrapping': crashApp,
-    'end': closeApp,
-  },
+  //   'interface is broken': showErrorMessage,
+  //   'interface is restored by force': renderView,
+
+  //   'MODEL crushed during bootstrapping': crashApp,
+  //   'end': closeApp,
+  // },
   settings: { isLogging: true },
-});
-BASEMENT.start('app is started');
-
-let STATE = {
-  isStartup: true,
-  skipViewEvent: false,
-  needRestoration: false,
+};
+let CONTROLLER = {
+  skipEvent: false,
 };
 
+const BOOTSTRAP = BRIEF([
+  [BASEMENT.homedir],       getDir,
+  [getDir, 'config.json'],  getConfig,
+  [getConfig],              initModel, initView,
+  [initModel, initView],    prepareInterface,
+  [prepareInterface],       initialRender,
+  [initialRender],          openTextEditor, initController
+]);
+const INPUT_PROCESSING = [
+  ['place input here'],     validateInput,
+  [validateInput],          processInput,
+];
 
-// MODEL (STORAGE + CORE)
-function initModel(done) {
-  STORAGE.bootstrap(processResults);
+// PREPARATIONS
+function getDir(dir, resolve) {
+  FILE.makeDir (
+    dir,
+    () => resolve(dir)
+  );
+}
+function getConfig(args, resolve) {
+  const dir = args[0];
+  const configFileName = PATH.join(dir, args[1]);
+  const defaults = {
+    pathToBase:             PATH.join( dir, 'base.note' ),
+    pathToBaseTemplate:     PATH.join( dir, 'template_base.txt' ),
+    pathToInterface:        PATH.join( dir, 'new.note' ),
+    pathToInterfaceTemplate:PATH.join( dir, 'template_interface.txt' ),
+    pathToTreeTemplate:     PATH.join( dir, 'template_tree.txt' ),
+    editor: 'subl',
+    bases: [{ alias: "first", path: "base.txt" }],
+  };
+  const CLIQuestions = [
+    { prop: 'pathToBase', question: 'New config-file will be created. Please, answer on 3 questions. \nFull path to database file (with filename):' },
+    { prop: 'pathToInterface', question: 'Path to new Note file:' },
+    { prop: 'editor', question: 'Shell command to open your text editor:' },
+  ];
 
-  function processResults(res) {
-    if (res && res.error) {
-      done('storage crushed during bootstrapping', res.error);
+  FILE.getConfig (
+    configFileName,
+    storeConfigData,
+    defaults,
+    CLIQuestions
+  );
+
+  function storeConfigData (config) {
+    BASEMENT.config = config;
+    resolve(config);
+  }
+}
+
+// MODEL (WORKING WITH DATA)
+function initModel(config, resolve, reject) {
+  MODEL.init(config, cb);
+
+  function cb(answer) {
+    if (answer && answer.error) {
+      ERR('MODEL crushed during initialization', answer.error);
+      reject(answer.error);
     } else {
-      done('storage is ready', res)
+      resolve(answer);
     }
   }
 }
+function prepareInterface (args, resolve) {
+  const data = args[0];
+  const view = args[1];
 
-// VIEW (USER INTERFACE)
-function renderView(done, viewString) {
-  const pathToInterface = STORAGE.getConfig().pathToInterface;
-  const view = viewString || STORAGE.getView();
-
-  if (!STATE.isStartup) STATE.skipViewEvent = true;
-
-  FILE.write(
-    pathToInterface,
-    view,
-    () => STATE.isStartup && done('interface file is ready') // this is performed only once
-  );
+  view.text = data;
+  resolve(view);
 }
-function showErrorMessage(done, message) {
-  const pathToInterface = STORAGE.getConfig().pathToInterface;
-  const forcedRestoration = STATE.needRestoration; // it's false on the first appear
-  let mesBroken = 
-    '\n\n                        INTERFACE IS BROKEN \n'+
-    'PLEASE, FIX IT MANUALLY OR IT WILL BE RESTORED WITH POSSIBLE DATA LOSS';
-  let msg = message || mesBroken;
-  
-  
-  if (forcedRestoration) {
-    message = '';
-    STATE.needRestoration = false;
-  } else {
-    ERR (msg);
-    STATE.needRestoration = true;
+
+// VIEW (RENDERING TO FILE)
+function initView(config, resolve, reject) {
+  VIEW.init(config, cb);
+
+  function cb(answer) {
+    if (answer && answer.error) {
+      ERR('View crushed during initialization', answer.error);
+      reject(answer.error);
+    } else {
+      resolve(answer);
+    }
   }
-  
-  STATE.skipViewEvent = true;
-  FILE.append (
-    pathToInterface,
-    msg,
-    () => forcedRestoration && done ('interface is restored by force') // rendering of restored interface
-  );
+}
+function initialRender(data, resolve) {
+  CONTROLLER.skipEvent = false;
+  VIEW.render(data, resolve);
 }
 function openTextEditor() {
-  STATE.isStartup = false;
-
-  const config = STORAGE.getConfig();
+  const config = BASEMENT.config;
   const shellCommand = `${config.editor} ${config.pathToInterface}`;
   LOG(`opening Text Editor by command: ${shellCommand}`);
 
@@ -103,47 +139,58 @@ function openTextEditor() {
 }
 
 // CONTROLLER (USER INPUT)
-function initController(done) {
-  const pathToInterface = STORAGE.getConfig().pathToInterface;
+function initController() {
+  const pathToInterface = BASEMENT.config.pathToInterface;
   LOG ('detecting changes of Interface File...');
 
 
   FILE.watch (pathToInterface, readInterfaceFile);
 
 
-  function readInterfaceFile() { 
-    // called every time interfaceFile is saved
-    // interface must be read only after external changes made by User
-    // internal changes affect on a "skipViewEvent" Flag only
-    if (STATE.skipViewEvent) return STATE.skipViewEvent = false;
+  function readInterfaceFile() {
+    // called every time the interfaceFile is saved.
+    // interfaceFile must be read only after external changes made by User
+    // interfaceFile will be updated by the program right after user input
+    // that update must not be catched
+    if (CONTROLLER.skipEvent)
+      return CONTROLLER.skipEvent = false; // skipping, not reading
 
     FILE.read (
       pathToInterface,
-      (fileContent) => done('user entered something', fileContent)
+      (content) => {
+        INPUT_PROCESSING[0][0] = content;
+        BRIEF(INPUT_PROCESSING);
+      }
     );
   }
 }
-function validateInput(done, data) {
-  const diagnosis = STORAGE.validate(data);
+function validateInput(string, resolve, reject) {
+  const diagnosis = VIEW.validate(string);
+
   if (diagnosis.ok) {
-    done('user input is valid', diagnosis.result);
+    resolve(diagnosis.result);
   } else {
-    done('interface is broken', diagnosis.error);
+    CONTROLLER.skipEvent = true;
+    VIEW.showErrorMessage();
+    reject(diagnosis.error);
   }
 }
-function processInput(done, input) {
-  let result = STORAGE.think (input);
-
-  done ('user input is processed', result)
+function processInput(input, resolve) { // SYNCHRONOUS !
+  //let result = MODEL.think (input);
+  let result = input;
+  console.log('wip', result);
+  CONTROLLER.skipEvent = true;
+  VIEW.render(input);
+  resolve(result);
 }
 
 
-
+// EXIT
 function crashApp(arg) {
   ERR('details:', arg);
   process.exit(1);
 }
 function closeApp() {
   LOG('Tot ziens!');
-  process.exit(1);
+  // process.exit(1);
 }
