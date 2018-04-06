@@ -1,8 +1,7 @@
 // IMPORTS
-  const BRIEF = require('../brief');
-  const Flow = require('flow-code-description');
+  const BRIEF = require('async-brief');
   const FILE = require('fs-handy-wraps');
-  const PARSER = require('parser-template');
+  const Parser = require('parser-template');
   const BRAIN = require('../knowkeep');
   const {LOG, ERR, TIME, MEM} = (require('./console'))({log: true, errors: true});
 
@@ -57,7 +56,7 @@ function getBaseTemplate(args, resolve) {
     readTemplate (content);
   }
   function readTemplate (template) {
-    const parser = new PARSER (template);
+    const parser = new Parser(template);
     STORAGE.base.parser = parser;
     resolve(parser);
   }

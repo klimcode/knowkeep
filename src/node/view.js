@@ -1,5 +1,4 @@
 // IMPORTS
-  const BRIEF = require('../brief');
   const FILE = require('fs-handy-wraps');
   const Parser = require('parser-template');
   const {LOG, ERR, TIME, MEM} = (require('./console'))({log: true, errors: true});

@@ -8,7 +8,7 @@
   },
   "preferGlobal": true,
   "dependencies": {
-    "flow-code-description": "3.2.0",
+    "async-brief": "0.1.0",
     "fs-handy-wraps": "2.0.0",
     "parser-template": "1.6.0"
   },

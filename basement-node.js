@@ -2,31 +2,15 @@
 'use strict'
 // IMPORTS
   const PATH = require('path');
-  const BRIEF = require('./src/brief');
+  const FILE = require('fs-handy-wraps');
+  const BRIEF = require('async-brief');
   const {LOG, ERR, TIME} = (require('./src/node/console'))({log: true, errors: true});
   const MODEL = (require('./src/node/model'))();
   const VIEW = require('./src/node/view');
-  const FILE = require('fs-handy-wraps');
 
 
 const BASEMENT = {
   homedir: PATH.join (require('os').homedir(), 'knowkeep'),
-  // steps: {
-  //   'start': [initModel, initView],
-  //   'view is ready': renderView,
-  //   'model is ready': renderView,
-  //   'user interface is ready': [openTextEditor, initController],
-
-  //   'user entered something': validateInput,
-  //   'user input is valid': processInput,
-  //   'user input is processed': renderView,
-
-  //   'interface is broken': showErrorMessage,
-  //   'interface is restored by force': renderView,
-
-  //   'MODEL crushed during bootstrapping': crashApp,
-  //   'end': closeApp,
-  // },
   settings: { isLogging: true },
 };
 let CONTROLLER = {
@@ -159,7 +143,7 @@ function initController() {
       pathToInterface,
       (content) => {
         INPUT_PROCESSING[0][0] = content;
-        BRIEF(INPUT_PROCESSING);
+        BRIEF(INPUT_PROCESSING, inputErrHandler);
       }
     );
   }
@@ -182,6 +166,9 @@ function processInput(input, resolve) { // SYNCHRONOUS !
   CONTROLLER.skipEvent = true;
   VIEW.render(input);
   resolve(result);
+}
+function inputErrHandler(err) {
+  ERR('hello, catched error!', err);
 }
 
 
