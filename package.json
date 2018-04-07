@@ -12,7 +12,6 @@
     "fs-handy-wraps": "2.0.0",
     "parser-template": "1.6.0"
   },
-  "devDependencies": {},
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },

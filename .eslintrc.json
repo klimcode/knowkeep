@@ -1,0 +1,8 @@
+{
+    "extends": "airbnb-base",
+    "rules": {
+        "no-multi-spaces": "off",
+        "key-spacing": "off",
+        "no-use-before-define": "off"
+    }
+}

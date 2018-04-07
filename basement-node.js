@@ -1,29 +1,31 @@
 #!/usr/bin/env node
-'use strict'
+
 // IMPORTS
-  const PATH = require('path');
-  const FILE = require('fs-handy-wraps');
-  const BRIEF = require('async-brief');
-  const {LOG, ERR, TIME} = (require('./src/node/console'))({log: true, errors: true});
-  const MODEL = (require('./src/node/model'))();
-  const VIEW = require('./src/node/view');
+const HOMEDIR = require('os').homedir();
+const PATH = require('path');
+const EXEC = require('child_process').exec;
+const FILE = require('fs-handy-wraps');
+const BRIEF = require('async-brief');
+const { LOG, ERR, TIME } = (require('./src/node/console'))({ log: true, errors: true });
+const MODEL = (require('./src/node/model'))();
+const VIEW = require('./src/node/view');
 
 
 const BASEMENT = {
-  homedir: PATH.join (require('os').homedir(), 'knowkeep'),
+  homedir: PATH.join(HOMEDIR, 'knowkeep'),
   settings: { isLogging: true },
 };
-let CONTROLLER = {
+const CONTROLLER = {
   skipEvent: false,
 };
 
-const BOOTSTRAP = BRIEF([
+BRIEF([
   [BASEMENT.homedir],       getDir,
   [getDir, 'config.json'],  getConfig,
   [getConfig],              initModel, initView,
   [initModel, initView],    prepareInterface,
   [prepareInterface],       initialRender,
-  [initialRender],          openTextEditor, initController
+  [initialRender],          openTextEditor, initController,
 ]);
 const INPUT_PROCESSING = [
   ['place input here'],     validateInput,
@@ -32,22 +34,22 @@ const INPUT_PROCESSING = [
 
 // PREPARATIONS
 function getDir(dir, resolve) {
-  FILE.makeDir (
+  FILE.makeDir(
     dir,
-    () => resolve(dir)
+    () => resolve(dir),
   );
 }
 function getConfig(args, resolve) {
   const dir = args[0];
   const configFileName = PATH.join(dir, args[1]);
   const defaults = {
-    pathToBase:             PATH.join( dir, 'base.note' ),
-    pathToBaseTemplate:     PATH.join( dir, 'template_base.txt' ),
-    pathToInterface:        PATH.join( dir, 'new.note' ),
-    pathToInterfaceTemplate:PATH.join( dir, 'template_interface.txt' ),
-    pathToTreeTemplate:     PATH.join( dir, 'template_tree.txt' ),
+    pathToBase:             PATH.join(dir, 'base.note'),
+    pathToBaseTemplate:     PATH.join(dir, 'template_base.txt'),
+    pathToInterface:        PATH.join(dir, 'new.note'),
+    pathToInterfaceTemplate:PATH.join(dir, 'template_interface.txt'),
+    pathToTreeTemplate:     PATH.join(dir, 'template_tree.txt'),
     editor: 'subl',
-    bases: [{ alias: "first", path: "base.txt" }],
+    bases: [{ alias: 'first', path: 'base.txt' }],
   };
   const CLIQuestions = [
     { prop: 'pathToBase', question: 'New config-file will be created. Please, answer on 3 questions. \nFull path to database file (with filename):' },
@@ -55,14 +57,14 @@ function getConfig(args, resolve) {
     { prop: 'editor', question: 'Shell command to open your text editor:' },
   ];
 
-  FILE.getConfig (
+  FILE.getConfig(
     configFileName,
     storeConfigData,
     defaults,
-    CLIQuestions
+    CLIQuestions,
   );
 
-  function storeConfigData (config) {
+  function storeConfigData(config) {
     BASEMENT.config = config;
     resolve(config);
   }
@@ -81,7 +83,7 @@ function initModel(config, resolve, reject) {
     }
   }
 }
-function prepareInterface (args, resolve) {
+function prepareInterface(args, resolve) {
   const data = args[0];
   const view = args[1];
 
@@ -107,28 +109,28 @@ function initialRender(data, resolve) {
   VIEW.render(data, resolve);
 }
 function openTextEditor() {
-  const config = BASEMENT.config;
+  const { config } = BASEMENT;
   const shellCommand = `${config.editor} ${config.pathToInterface}`;
   LOG(`opening Text Editor by command: ${shellCommand}`);
 
   // An example of working shell command for Windows CMD:
   // shellCommand = 'start "" "c:\\Program Files\\Sublime Text 3\\sublime_text.exe"';
 
-  require('child_process').exec (shellCommand, cb);
+  EXEC(shellCommand, cb);
   function cb(error, stdout, stderr) {
-    error &&  ERR('error: ', error);
-    stdout && ERR('stdout: ', stdout);
-    stderr && ERR('stderr: ', stderr);
+    if (error)  ERR('error: ', error);
+    if (stdout) ERR('stdout: ', stdout);
+    if (stderr) ERR('stderr: ', stderr);
   }
 }
 
 // CONTROLLER (USER INPUT)
 function initController() {
-  const pathToInterface = BASEMENT.config.pathToInterface;
-  LOG ('detecting changes of Interface File...');
+  const { pathToInterface } = BASEMENT.config;
+  LOG('detecting changes of Interface File...');
 
 
-  FILE.watch (pathToInterface, readInterfaceFile);
+  FILE.watch(pathToInterface, readInterfaceFile);
 
 
   function readInterfaceFile() {
@@ -136,15 +138,17 @@ function initController() {
     // interfaceFile must be read only after external changes made by User
     // interfaceFile will be updated by the program right after user input
     // that update must not be catched
-    if (CONTROLLER.skipEvent)
-      return CONTROLLER.skipEvent = false; // skipping, not reading
+    if (CONTROLLER.skipEvent) {
+      CONTROLLER.skipEvent = false; // skipping, not reading
+      return;
+    }
 
-    FILE.read (
+    FILE.read(
       pathToInterface,
       (content) => {
         INPUT_PROCESSING[0][0] = content;
         BRIEF(INPUT_PROCESSING, inputErrHandler);
-      }
+      },
     );
   }
 }
@@ -160,7 +164,6 @@ function validateInput(string, resolve, reject) {
   }
 }
 function processInput(input, resolve) { // SYNCHRONOUS !
-  //let result = MODEL.think (input);
   let result = input;
   console.log('wip', result);
   CONTROLLER.skipEvent = true;
