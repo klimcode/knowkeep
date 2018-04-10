@@ -1,20 +1,20 @@
 // IMPORTS
-  const FILE = require('fs-handy-wraps');
-  const Parser = require('parser-template');
-  const {LOG, ERR, TIME, MEM} = (require('./console'))({log: true, errors: true});
+const FILE = require('fs-handy-wraps');
+const Parser = require('parser-template');
+const { LOG, ERR } = (require('./console'))({ log: true, errors: true });
 
 
-let VIEW = { // PUBLIC DATA AND FUNCTIONS
+const VIEW = { // PUBLIC DATA AND FUNCTIONS
   needRestoration: false,
 
   init,
   showErrorMessage,
   render,
-  validate
-}
+  validate,
+};
 let PARSER;
 
-function init(config, resolve) {
+function init(config, resolve, reject) {
   VIEW.config = config;
   const pathToTemplate = config.pathToInterfaceTemplate;
   const defTemplateText =
@@ -28,23 +28,28 @@ function init(config, resolve) {
     pathToTemplate,
     readTemplate,
     readDefTemplate,
-    defTemplateText
+    defTemplateText,
+    errHandler,
   );
 
 
-  function readDefTemplate (path, content) {
+  function readDefTemplate(path, content) {
     LOG(`created file for Interface Template: ${path}. You may edit it manually.`);
     readTemplate(content);
   }
   function readTemplate(template) {
     PARSER = new Parser(template);
-    VIEW.defData = PARSER.parse(template)[0];
+    [VIEW.defData] = PARSER.parse(template);
 
-    resolve(Object.assign({},VIEW.defData));
+    resolve(Object.assign({}, VIEW.defData));
+  }
+  function errHandler(err) {
+    ERR(`Can not write to file: ${pathToTemplate}`);
+    reject(err);
   }
 }
 function render(data, resolve) {
-  const pathToInterface = VIEW.config.pathToInterface;
+  const { pathToInterface } = VIEW.config;
   const dataToDisplay = data || VIEW.data || VIEW.defData;
 
   VIEW.data = dataToDisplay;
@@ -53,40 +58,39 @@ function render(data, resolve) {
   FILE.write(
     pathToInterface,
     viewString,
-    () => resolve && resolve(true)
+    () => resolve && resolve(true),
   );
 }
-function showErrorMessage(message, resolve) {
-  const pathToInterface = VIEW.config.pathToInterface;
+function showErrorMessage(message) {
+  const { pathToInterface } = VIEW.config;
   const forcedRestoration = VIEW.needRestoration; // it's false on the first appear
-  let mesBroken =
-    '\n\n                        INTERFACE IS BROKEN \n'+
+  const mesBroken =
+    '\n\n                        INTERFACE IS BROKEN \n' +
     'PLEASE, FIX IT MANUALLY OR IT WILL BE RESTORED WITH POSSIBLE DATA LOSS';
   let msg = message || mesBroken;
 
 
   if (forcedRestoration) {
-    message = '';
+    msg = '';
     VIEW.needRestoration = false;
   } else {
-    ERR (msg);
+    ERR(msg);
     VIEW.needRestoration = true;
   }
 
-  FILE.append (
+  FILE.append(
     pathToInterface,
     msg,
-    () => forcedRestoration && render() // rendering of restored interface
+    () => forcedRestoration && render(), // rendering of restored interface
   );
 }
 
-function validate(input, resolve) {
-  const result = PARSER.parse(input)[0];
-  if (result) {
-    return {result, ok: true}
-  } else {
-    return {error: 'interface is broken'}
-  }
+function validate(input) {
+  const data = PARSER.parse(input)[0];
+  const result = data
+    ? { isOk: true, data }
+    : { error: 'interface is broken' };
+  return result;
 }
 
 module.exports = VIEW;

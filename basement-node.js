@@ -5,8 +5,8 @@ const HOMEDIR = require('os').homedir();
 const PATH = require('path');
 const EXEC = require('child_process').exec;
 const FILE = require('fs-handy-wraps');
-const BRIEF = require('async-brief');
-const { LOG, ERR, TIME } = (require('./src/node/console'))({ log: true, errors: true });
+const BRIEF = require('brief-async');
+const { LOG, ERR } = (require('./src/node/console'))({ log: true, errors: true });
 const MODEL = (require('./src/node/model'))();
 const VIEW = require('./src/node/view');
 
@@ -19,18 +19,23 @@ const CONTROLLER = {
   skipEvent: false,
 };
 
-BRIEF([
+const BOOTSTRAP = [
   [BASEMENT.homedir],       getDir,
   [getDir, 'config.json'],  getConfig,
   [getConfig],              initModel, initView,
   [initModel, initView],    prepareInterface,
   [prepareInterface],       initialRender,
   [initialRender],          openTextEditor, initController,
-]);
+  [initController],         finishInit,
+];
 const INPUT_PROCESSING = [
-  ['place input here'],     validateInput,
+  ['input will be here'],   validateInput,
   [validateInput],          processInput,
 ];
+
+
+BRIEF(BOOTSTRAP); // <-- entry point
+
 
 // PREPARATIONS
 function getDir(dir, resolve) {
@@ -68,6 +73,10 @@ function getConfig(args, resolve) {
     BASEMENT.config = config;
     resolve(config);
   }
+}
+function finishInit(args, resolve) {
+  LOG('App is loaded and ready');
+  resolve(true);
 }
 
 // MODEL (WORKING WITH DATA)
@@ -125,13 +134,12 @@ function openTextEditor() {
 }
 
 // CONTROLLER (USER INPUT)
-function initController() {
+function initController(args, resolve) {
   const { pathToInterface } = BASEMENT.config;
-  LOG('detecting changes of Interface File...');
-
 
   FILE.watch(pathToInterface, readInterfaceFile);
-
+  LOG('detecting changes of Interface File...');
+  resolve(true);
 
   function readInterfaceFile() {
     // called every time the interfaceFile is saved.
@@ -146,7 +154,7 @@ function initController() {
     FILE.read(
       pathToInterface,
       (content) => {
-        INPUT_PROCESSING[0][0] = content;
+        INPUT_PROCESSING[0][0] = content; // first argument for Brief
         BRIEF(INPUT_PROCESSING, inputErrHandler);
       },
     );
@@ -155,8 +163,8 @@ function initController() {
 function validateInput(string, resolve, reject) {
   const diagnosis = VIEW.validate(string);
 
-  if (diagnosis.ok) {
-    resolve(diagnosis.result);
+  if (diagnosis.isOk) {
+    resolve(diagnosis.data);
   } else {
     CONTROLLER.skipEvent = true;
     VIEW.showErrorMessage();

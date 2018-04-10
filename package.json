@@ -8,8 +8,8 @@
   },
   "preferGlobal": true,
   "dependencies": {
-    "async-brief": "0.1.0",
-    "fs-handy-wraps": "2.0.0",
+    "brief-async": "0.3.0",
+    "fs-handy-wraps": "2.1.0",
     "parser-template": "1.6.0"
   },
   "scripts": {
