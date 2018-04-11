@@ -13,7 +13,6 @@ const VIEW = require('./src/node/view');
 
 const BASEMENT = {
   homedir: PATH.join(HOMEDIR, 'knowkeep'),
-  settings: { isLogging: true },
 };
 const CONTROLLER = {
   skipEvent: false,
@@ -26,7 +25,7 @@ const BOOTSTRAP = [
   [initModel, initView],    prepareInterface,
   [prepareInterface],       initialRender,
   [initialRender],          openTextEditor, initController,
-  [initController],         finishInit,
+  [openTextEditor, initController], finishInit,
 ];
 const INPUT_PROCESSING = [
   ['input will be here'],   validateInput,
@@ -34,7 +33,7 @@ const INPUT_PROCESSING = [
 ];
 
 
-BRIEF(BOOTSTRAP); // <-- entry point
+BRIEF(BOOTSTRAP, crashApp, true); // <-- entry point
 
 
 // PREPARATIONS
@@ -117,19 +116,24 @@ function initialRender(data, resolve) {
   CONTROLLER.skipEvent = false;
   VIEW.render(data, resolve);
 }
-function openTextEditor() {
+function openTextEditor(args, resolve, reject) {
   const { config } = BASEMENT;
   const shellCommand = `${config.editor} ${config.pathToInterface}`;
   LOG(`opening Text Editor by command: ${shellCommand}`);
+
 
   // An example of working shell command for Windows CMD:
   // shellCommand = 'start "" "c:\\Program Files\\Sublime Text 3\\sublime_text.exe"';
 
   EXEC(shellCommand, cb);
   function cb(error, stdout, stderr) {
-    if (error)  ERR('error: ', error);
-    if (stdout) ERR('stdout: ', stdout);
-    if (stderr) ERR('stderr: ', stderr);
+    if (error)  {
+      ERR('error:', error);
+      reject('can not open editor');
+      if (stderr) ERR('stderr:', stderr);
+    } else {
+      resolve(true);
+    }
   }
 }
 
@@ -185,10 +189,10 @@ function inputErrHandler(err) {
 
 // EXIT
 function crashApp(arg) {
-  ERR('details:', arg);
+  ERR('App was crashed. Reason:', arg);
   process.exit(1);
 }
-function closeApp() {
-  LOG('Tot ziens!');
-  // process.exit(1);
-}
+// function closeApp() {
+//   LOG('Tot ziens!');
+//   // process.exit(1);
+// }
