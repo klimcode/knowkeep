@@ -1,6 +1,6 @@
 {
   "name": "knowkeep",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A cross-platform utility for keeping knowledges",
   "main": "basement-node.js",
   "bin": {
@@ -8,7 +8,7 @@
   },
   "preferGlobal": true,
   "dependencies": {
-    "brief-async": "0.3.0",
+    "brief-async": "0.4.0",
     "fs-handy-wraps": "2.1.0",
     "parser-template": "1.6.0"
   },

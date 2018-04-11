@@ -1,31 +1,28 @@
 // IMPORTS
+const BRIEF = require('brief-async');
 const FILE = require('fs-handy-wraps');
 const Parser = require('parser-template');
 const { LOG, ERR } = (require('./console'))({ log: true, errors: true });
 
 
-const VIEW = { // PUBLIC DATA AND FUNCTIONS
+const VIEW = {
   needRestoration: false,
-
-  init,
-  showErrorMessage,
-  render,
-  validate,
 };
 let PARSER;
 
-function init(config, resolve, reject) {
-  VIEW.config = config;
-  const pathToTemplate = config.pathToInterfaceTemplate;
+
+// INTERNAL FUNCTIONS
+function getTemplate(config, resolve, reject) {
+  const path = config.pathToInterfaceTemplate;
   const defTemplateText =
-  '<m><text>' +
-  '\n================================ commands ====================================\n' +
-  '<m>add<command>\n';
+    '<m><text>' +
+    '\n================================ commands ====================================\n' +
+    '<m>add<command>\n';
 
 
-  LOG(`Interface template: ${pathToTemplate}`);
+  LOG(`Interface template: ${path}`);
   FILE.readOrMake(
-    pathToTemplate,
+    path,
     readTemplate,
     readDefTemplate,
     defTemplateText,
@@ -33,8 +30,8 @@ function init(config, resolve, reject) {
   );
 
 
-  function readDefTemplate(path, content) {
-    LOG(`created file for Interface Template: ${path}. You may edit it manually.`);
+  function readDefTemplate(filePath, content) {
+    LOG(`created file for Interface Template: ${filePath}. You may edit it manually.`);
     readTemplate(content);
   }
   function readTemplate(template) {
@@ -44,10 +41,40 @@ function init(config, resolve, reject) {
     resolve(Object.assign({}, VIEW.defData));
   }
   function errHandler(err) {
-    ERR(`Can not write to file: ${pathToTemplate}`);
+    ERR(`Can not write to file: ${path}`);
     reject(err);
   }
 }
+function getViewFile(config, resolve, reject) {
+  const { pathToInterface } = config;
+  FILE.readOrMake(
+    pathToInterface,
+    content => resolve(content),
+    () => resolve(''),
+    '',
+    errHandler,
+  );
+
+
+  function errHandler(err) {
+    ERR(`Can not write to file: ${pathToInterface}`);
+    reject(err);
+  }
+}
+function checkViewFileOutdated(args, resolve) {
+  const defView = args[0];
+  const viewFile = args[1];
+
+  const isOutdated = defView.text !== PARSER.parse(viewFile).text;
+  const result = {
+    isOutdated,
+    view: defView,
+  };
+
+  resolve(result);
+}
+
+
 function render(data, resolve) {
   const { pathToInterface } = VIEW.config;
   const dataToDisplay = data || VIEW.data || VIEW.defData;
@@ -84,7 +111,6 @@ function showErrorMessage(message) {
     () => forcedRestoration && render(), // rendering of restored interface
   );
 }
-
 function validate(input) {
   const data = PARSER.parse(input)[0];
   const result = data
@@ -93,4 +119,16 @@ function validate(input) {
   return result;
 }
 
-module.exports = VIEW;
+module.exports = () => ({ // PUBLIC DATA AND FUNCTIONS
+
+  init(config, resolve, reject) {
+    VIEW.config = config;
+    BRIEF([
+      [config],                    getTemplate, getViewFile,
+      [getTemplate, getViewFile],  checkViewFileOutdated,
+    ]).then(resolve).catch(reject);
+  },
+  showErrorMessage,
+  render,
+  validate,
+});

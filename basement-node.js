@@ -8,7 +8,7 @@ const FILE = require('fs-handy-wraps');
 const BRIEF = require('brief-async');
 const { LOG, ERR } = (require('./src/node/console'))({ log: true, errors: true });
 const MODEL = (require('./src/node/model'))();
-const VIEW = require('./src/node/view');
+const VIEW = (require('./src/node/view'))();
 
 
 const BASEMENT = {
@@ -22,14 +22,14 @@ const BOOTSTRAP = [
   [BASEMENT.homedir],       getDir,
   [getDir, 'config.json'],  getConfig,
   [getConfig],              initModel, initView,
-  [initModel, initView],    prepareInterface,
-  [prepareInterface],       initialRender,
+  [initModel, initView],    initialRender,
   [initialRender],          openTextEditor, initController,
   [openTextEditor, initController], finishInit,
 ];
 const INPUT_PROCESSING = [
   ['input will be here'],   validateInput,
   [validateInput],          processInput,
+  [processInput],           render,
 ];
 
 
@@ -91,12 +91,10 @@ function initModel(config, resolve, reject) {
     }
   }
 }
-function prepareInterface(args, resolve) {
-  const data = args[0];
-  const view = args[1];
+function processInput(input, resolve) {
+  const result = MODEL.gotUserInput(input);
 
-  view.text = data;
-  resolve(view);
+  resolve(result);
 }
 
 // VIEW (RENDERING TO FILE)
@@ -112,9 +110,17 @@ function initView(config, resolve, reject) {
     }
   }
 }
-function initialRender(data, resolve) {
+function initialRender(args, resolve) {
+  const { data, dataType } = args[0];
+  const { view, isOutdated } = args[1];
+  view.text = data;
+
   CONTROLLER.skipEvent = false;
-  VIEW.render(data, resolve);
+  if ((dataType === 'flat') || (isOutdated)) {
+    VIEW.render(view, resolve);
+  } else {
+    resolve(true);
+  }
 }
 function openTextEditor(args, resolve, reject) {
   const { config } = BASEMENT;
@@ -135,6 +141,14 @@ function openTextEditor(args, resolve, reject) {
       resolve(true);
     }
   }
+}
+function render(view, resolve) {
+  if (view.needRender) {
+    CONTROLLER.skipEvent = true;
+    VIEW.render(view);
+  }
+
+  resolve(true);
 }
 
 // CONTROLLER (USER INPUT)
@@ -174,13 +188,6 @@ function validateInput(string, resolve, reject) {
     VIEW.showErrorMessage();
     reject(diagnosis.error);
   }
-}
-function processInput(input, resolve) { // SYNCHRONOUS !
-  let result = input;
-  console.log('wip', result);
-  CONTROLLER.skipEvent = true;
-  VIEW.render(input);
-  resolve(result);
 }
 function inputErrHandler(err) {
   ERR('hello, catched error!', err);
